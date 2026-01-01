@@ -12,12 +12,78 @@ func parse(data []byte) (any, []byte, error) {
 		return nil, nil, nil
 	}
 
-	// if data[0] == 'd' {
+	switch data[0] {
+	case 'i':
+		return parse_int(data, data_len)
+	case 'l':
+		return parse_list(data, data_len)
+	}
+	// else if data[0] == 'd' {
 	// 	return parse_dict(data)
-	// } else if data[0] == 'l' {
-	// 	return parse_list(data)
 	// }
 
+	return parse_string(data, data_len)
+}
+
+func parse_list(data []byte, data_len int) (any, []byte, error) {
+	if data_len < 2 {
+		return nil, nil, fmt.Errorf("invalid list - should start with 'l' and end with 'e'")
+	}
+	result := []any{}
+	data = data[1:]
+	if data[0] == 'e' {
+		return result, data[1:], nil
+	}
+	for {
+		n, r, e := parse(data)
+		if e != nil {
+			return nil, nil, e
+		}
+		result = append(result, n)
+		data = r
+		if len(data) == 0 {
+			return nil, nil, fmt.Errorf("invalid list - should start with 'l' and end with 'e'")
+		}
+		if data[0] == 'e' {
+			return result, data[1:], nil
+		}
+	}
+}
+
+func parse_int(data []byte, data_len int) (any, []byte, error) {
+	if data_len < 3 || (data[1] == '-' && data_len < 4) {
+		return nil, nil, fmt.Errorf("invalid integer - should start with 'i' and end with 'e'")
+	}
+
+	s, e := 1, 1
+	negative := data[s] == '-'
+	if negative {
+		s, e = 2, 2
+	}
+
+	for data[e] >= '0' && data[e] <= '9' {
+		if data_len <= e {
+			return nil, nil, fmt.Errorf("invalid integer - should start with 'i' and end with 'e'")
+		}
+		e++
+	}
+
+	if s == e {
+		return nil, nil, fmt.Errorf("invalid integer - no number specified")
+	} else if data[e] != 'e' {
+		return nil, nil, fmt.Errorf("invalid integer - should start with 'i' and end with 'e'")
+	} else if data[s] == '0' && (e != s+1 || negative) {
+		return nil, nil, fmt.Errorf("invalid integer - cannot start with 0 or be negative 0")
+	}
+
+	value, _ := strconv.Atoi(string(data[s:e]))
+	if negative {
+		value *= -1
+	}
+	return value, data[e+1:], nil
+}
+
+func parse_string(data []byte, data_len int) (any, []byte, error) {
 	i := 0
 	for data[i] >= '0' && data[i] <= '9' {
 		if data_len <= i {
