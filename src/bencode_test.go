@@ -272,3 +272,95 @@ func TestParseLists(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDicts(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []byte
+		want     any
+		want_rem []byte
+		want_err bool
+	}{
+		{
+			name:     "empty dict",
+			input:    []byte("de"),
+			want:     map[string]any{},
+			want_rem: []byte{},
+			want_err: false,
+		},
+
+		{
+			name:     "empty dict with remainder",
+			input:    []byte("detest"),
+			want:     map[string]any{},
+			want_rem: []byte("test"),
+			want_err: false,
+		},
+
+		{
+			name:  "dict with one value",
+			input: []byte("d4:testi1ee"),
+			want: map[string]any{
+				"test": 1,
+			},
+			want_rem: []byte{},
+			want_err: false,
+		},
+
+		{
+			name:  "dict with one value and remainder",
+			input: []byte("d4:testi1eetest"),
+			want: map[string]any{
+				"test": 1,
+			},
+			want_rem: []byte("test"),
+			want_err: false,
+		},
+
+		{
+			name:  "dict with mixed values",
+			input: []byte("d4:testi1e4:spam4:eggs4:listli1ei2ei3eee"),
+			want: map[string]any{
+				"test": 1,
+				"spam": "eggs",
+				"list": []any{1, 2, 3},
+			},
+			want_rem: []byte{},
+			want_err: false,
+		},
+
+		{
+			name:     "dict with an invalid key",
+			input:    []byte("di2ei1e4:spam4:eggse"),
+			want:     nil,
+			want_rem: nil,
+			want_err: true,
+		},
+
+		{
+			name:     "dict missing a value",
+			input:    []byte("d4:testi1e4:spam4:eggs4:liste"),
+			want:     nil,
+			want_rem: nil,
+			want_err: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, rem, err := parse(tt.input)
+			if (err != nil) != tt.want_err {
+				t.Errorf("parse() error = %v, wantErr %v", err, tt.want_err)
+				return
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parse() = %v, want %v", got, tt.want)
+			}
+
+			if !reflect.DeepEqual(rem, tt.want_rem) {
+				t.Errorf("parse() = %v, want remainder %v", rem, tt.want_rem)
+			}
+		})
+	}
+}

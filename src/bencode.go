@@ -17,12 +17,51 @@ func parse(data []byte) (any, []byte, error) {
 		return parse_int(data, data_len)
 	case 'l':
 		return parse_list(data, data_len)
+	case 'd':
+		return parse_dict(data, data_len)
 	}
-	// else if data[0] == 'd' {
-	// 	return parse_dict(data)
-	// }
 
 	return parse_string(data, data_len)
+}
+
+func parse_dict(data []byte, data_len int) (any, []byte, error) {
+	if data_len < 2 {
+		return nil, nil, fmt.Errorf("invalid list - should start with 'd' and end with 'e'")
+	}
+	result := make(map[string]any)
+	data = data[1:]
+	if data[0] == 'e' {
+		return result, data[1:], nil
+	}
+	is_key := true
+	key := ""
+	for {
+		n, r, e := parse(data)
+		if e != nil {
+			return nil, nil, e
+		}
+		if is_key {
+			k, ok := n.(string)
+			if !ok {
+				return nil, nil, fmt.Errorf("invalid dictionary - keys should be strings")
+			}
+			key = k
+			is_key = false
+		} else {
+			result[key] = n
+			is_key = true
+		}
+		data = r
+		if len(data) == 0 {
+			return nil, nil, fmt.Errorf("invalid dictionary - should start with 'd' and end with 'e'")
+		}
+		if data[0] == 'e' {
+			if !is_key {
+				return nil, nil, fmt.Errorf("invalid dictionary - an entry is missing a defined value")
+			}
+			return result, data[1:], nil
+		}
+	}
 }
 
 func parse_list(data []byte, data_len int) (any, []byte, error) {
