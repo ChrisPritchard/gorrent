@@ -85,7 +85,7 @@ func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
 		return nil_file, fmt.Errorf("invalid torrent: invalid files or missing length")
 	}
 	file_set := []TorrentFile{}
-	if err2 != nil {
+	if err2 == nil {
 		for _, file := range files {
 			info, ok := file.(map[string]any)
 			if !ok {
