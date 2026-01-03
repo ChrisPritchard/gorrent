@@ -1,34 +1,21 @@
-package main
+package torrent
 
 import (
 	"crypto/sha1"
 	"fmt"
+
+	"github.com/chrispritchard/gotorrent/internal/bencode"
 )
 
 // Decodes a torrent file into the relevant properties for further downloading
 
-type TorrentMetadata struct {
-	Announcers  []string
-	InfoHash    [20]byte
-	Name        string
-	PieceLength int
-	Pieces      []string
-	Length      int
-	Files       []TorrentFile
-}
-
-type TorrentFile struct {
-	Path   []string
-	Length int
-}
-
-func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
+func ParseTorrentFile(file_data []byte) (TorrentMetadata, error) {
 	var nil_torrent TorrentMetadata
 	hash, err := get_info_hash(file_data)
 	if err != nil {
 		return nil_torrent, err
 	}
-	decoded, _, err := decode_from_bencoded(file_data)
+	decoded, _, err := bencode.Decode(file_data)
 	if err != nil {
 		return nil_torrent, err
 	}
@@ -38,13 +25,13 @@ func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
 		return nil_torrent, fmt.Errorf("invalid torrent: root is not a dict")
 	}
 
-	announce, err := get_val[string](root, "announce")
+	announce, err := bencode.Get[string](root, "announce")
 	if err != nil {
 		return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 	}
 	announcers := []string{announce}
 
-	announce_list, err := get_val[[]any](root, "announce-list")
+	announce_list, err := bencode.Get[[]any](root, "announce-list")
 	if err == nil {
 		for _, entry := range announce_list {
 			sub_list, ok := entry.([]any)
@@ -61,22 +48,22 @@ func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
 		}
 	}
 
-	info, err := get_val[map[string]any](root, "info")
+	info, err := bencode.Get[map[string]any](root, "info")
 	if err != nil {
 		return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 	}
 
-	name, err := get_val[string](info, "name")
+	name, err := bencode.Get[string](info, "name")
 	if err != nil {
 		return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 	}
 
-	piece_length, err := get_val[int](info, "piece length")
+	piece_length, err := bencode.Get[int](info, "piece length")
 	if err != nil {
 		return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 	}
 
-	pieces, err := get_val[string](info, "pieces")
+	pieces, err := bencode.Get[string](info, "pieces")
 	if err != nil {
 		return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 	}
@@ -85,8 +72,8 @@ func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
 		pieces_parsed = append(pieces_parsed, pieces[i*20:(i+1)*20])
 	}
 
-	length, err := get_val[int](info, "length")
-	files, err2 := get_val[[]any](info, "files")
+	length, err := bencode.Get[int](info, "length")
+	files, err2 := bencode.Get[[]any](info, "files")
 	if err != nil && err2 != nil {
 		return nil_torrent, fmt.Errorf("invalid torrent: invalid files or missing length")
 	}
@@ -97,11 +84,11 @@ func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
 			if !ok {
 				return nil_torrent, fmt.Errorf("invalid torrent: file entries are not valid dictionaries")
 			}
-			file_length, err := get_val[int](info, "length")
+			file_length, err := bencode.Get[int](info, "length")
 			if err != nil {
 				return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 			}
-			path, err := get_string_list(info, "path")
+			path, err := bencode.GetStrings(info, "path")
 			if err != nil {
 				return nil_torrent, fmt.Errorf("invalid torrent: %v", err)
 			}
@@ -129,35 +116,6 @@ func parse_torrent_file(file_data []byte) (TorrentMetadata, error) {
 	}, nil
 }
 
-func get_val[T any](m map[string]any, key string) (T, error) {
-	var nilT T
-	val, exists := m[key]
-	if !exists {
-		return nilT, fmt.Errorf("key %s was not in map", key)
-	}
-	res, ok := val.(T)
-	if !ok {
-		return nilT, fmt.Errorf("key %s's value was an invalid type: %v", key, val)
-	}
-	return res, nil
-}
-
-func get_string_list(m map[string]any, key string) ([]string, error) {
-	list, err := get_val[[]any](m, key)
-	if err != nil {
-		return nil, err
-	}
-	results := []string{}
-	for _, v := range list {
-		s, ok := v.(string)
-		if !ok {
-			return nil, fmt.Errorf("a non-string value was in the list: %v", v)
-		}
-		results = append(results, string(s))
-	}
-	return results, nil
-}
-
 func get_info_hash(data []byte) ([20]byte, error) {
 	data = data[1:]
 	var nil_hash [20]byte
@@ -167,7 +125,7 @@ func get_info_hash(data []byte) ([20]byte, error) {
 	is_key := true
 	key := ""
 	for {
-		n, r, e := decode_from_bencoded(data)
+		n, r, e := bencode.Decode(data)
 		if e != nil {
 			return nil_hash, e
 		}

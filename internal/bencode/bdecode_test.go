@@ -1,4 +1,4 @@
-package main
+package bencode
 
 import (
 	"reflect"
@@ -64,7 +64,7 @@ func TestParseStrings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, rem, err := decode_from_bencoded(tt.input)
+			got, rem, err := Decode(tt.input)
 			if (err != nil) != tt.want_err {
 				t.Errorf("parse() error = %v, wantErr %v", err, tt.want_err)
 				return
@@ -164,7 +164,7 @@ func TestParseIntegers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, rem, err := decode_from_bencoded(tt.input)
+			got, rem, err := Decode(tt.input)
 			if (err != nil) != tt.want_err {
 				t.Errorf("parse() error = %v, wantErr %v", err, tt.want_err)
 				return
@@ -256,7 +256,7 @@ func TestParseLists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, rem, err := decode_from_bencoded(tt.input)
+			got, rem, err := Decode(tt.input)
 			if (err != nil) != tt.want_err {
 				t.Errorf("parse() error = %v, wantErr %v", err, tt.want_err)
 				return
@@ -348,7 +348,7 @@ func TestParseDicts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, rem, err := decode_from_bencoded(tt.input)
+			got, rem, err := Decode(tt.input)
 			if (err != nil) != tt.want_err {
 				t.Errorf("parse() error = %v, wantErr %v", err, tt.want_err)
 				return

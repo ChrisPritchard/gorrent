@@ -1,4 +1,4 @@
-package main
+package bencode
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 // Code to decode a bencoded file, e.g. a torrent file. There are only four datatypes, and its all done around individual bytes (text encoding does not apply here)
 
-func decode_from_bencoded(data []byte) (any, []byte, error) {
+func Decode(data []byte) (any, []byte, error) {
 	data_len := len(data)
 
 	if data_len == 0 {
@@ -38,7 +38,7 @@ func parse_bencoded_dict(data []byte, data_len int) (any, []byte, error) {
 	is_key := true
 	key := ""
 	for {
-		n, r, e := decode_from_bencoded(data)
+		n, r, e := Decode(data)
 		if e != nil {
 			return nil, nil, e
 		}
@@ -76,7 +76,7 @@ func parse_bencoded_list(data []byte, data_len int) (any, []byte, error) {
 		return result, data[1:], nil
 	}
 	for {
-		n, r, e := decode_from_bencoded(data)
+		n, r, e := Decode(data)
 		if e != nil {
 			return nil, nil, e
 		}
