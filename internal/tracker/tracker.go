@@ -100,28 +100,28 @@ func parse_full_peers(peers_full []any) ([]PeerInfo, error) {
 	for _, p := range peers_full {
 		peer, ok := p.(map[string]any)
 		if !ok {
-			return nil_info, fmt.Errorf("invalid tracker response - invalid peer response - %v is not a dict", p)
+			return nil_info, fmt.Errorf(" %v is not a dict", p)
 		}
 
-		port, err := bencode.Get[uint16](peer, "port")
+		port, err := bencode.Get[int](peer, "port")
 		if err != nil {
-			return nil_info, fmt.Errorf("invalid tracker response - invalid peer response - missing port on a peer")
+			return nil_info, fmt.Errorf("missing port on a peer")
 		}
 
 		ip, err := bencode.Get[string](peer, "ip")
 		if err != nil {
-			return nil_info, fmt.Errorf("invalid tracker response - invalid peer response - missing ip on a peer")
+			return nil_info, fmt.Errorf(" missing ip on a peer")
 		}
 
 		id, err := bencode.Get[string](peer, "peer id")
 		if err != nil {
-			return nil_info, fmt.Errorf("invalid tracker response - invalid peer response - missing peer id on a peer")
+			return nil_info, fmt.Errorf("missing peer id on a peer")
 		}
 
 		result = append(result, PeerInfo{
 			Id:   id,
 			IP:   ip,
-			Port: port,
+			Port: uint16(port),
 		})
 	}
 
@@ -130,7 +130,7 @@ func parse_full_peers(peers_full []any) ([]PeerInfo, error) {
 
 func parse_compact_peers(peers_compact string) ([]PeerInfo, error) {
 	if len(peers_compact)%6 != 0 {
-		return nil_info, fmt.Errorf("invalid tracker response - invalid packed peer response - size isnt a multiple of 6")
+		return nil_info, fmt.Errorf("size isnt a multiple of 6")
 	}
 	result := []PeerInfo{}
 
