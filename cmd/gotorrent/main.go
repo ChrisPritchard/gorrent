@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"sync"
@@ -38,7 +37,8 @@ func try_download(torrent_file_path string) error {
 		return fmt.Errorf("failed to register with tracker: %v", err)
 	}
 
-	conns := try_handshake(torrent, tracker_response, 20)
+	peer_handshakes := get_handshakes(torrent, tracker_response)
+	conns, _ := concurrent(peer_handshakes, 20)
 	for _, c := range conns {
 		defer c.Close()
 	}
@@ -52,33 +52,47 @@ func try_download(torrent_file_path string) error {
 	return nil
 }
 
-func try_handshake(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse, maxConcurrent int) []net.Conn {
-	var mu sync.Mutex
-	var connections []net.Conn
-	sem := make(chan struct{}, maxConcurrent) // Semaphore for limiting concurrency
-	var wg sync.WaitGroup
-
+func get_handshakes(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse) []op[net.Conn] {
+	ops := make([]op[net.Conn], len(tracker_response.Peers))
 	for _, p := range tracker_response.Peers {
-		wg.Add(1)
-		go func(p tracker.PeerInfo) {
+		local_p := p
+		ops = append(ops, func() (net.Conn, error) {
+			return peer.Handshake(metadata, tracker_response, local_p)
+		})
+	}
+	return ops
+}
+
+type op[T any] = func() (T, error)
+
+func concurrent[T any](ops []op[T], max_concurrent int) ([]T, []error) {
+	var result []T
+	var errors []error
+
+	var mutex sync.Mutex // ensuring single-time access to slices
+
+	sem := make(chan struct{}, max_concurrent) // basically a queue of open 'chances' - we cant run an op until we can reserve a spot in the queue
+	var wg sync.WaitGroup                      // used to wait until all ops are completed - each one adds to this
+	wg.Add(len(ops))
+
+	for _, o := range ops {
+		go func(o func() (T, error)) {
 			defer wg.Done()
 
-			sem <- struct{}{}        // Acquire slot
-			defer func() { <-sem }() // Release slot
+			sem <- struct{}{}        // acquire slot
+			defer func() { <-sem }() // release slot
 
-			conn, err := peer.Handshake(metadata, tracker_response, p)
-			if err != nil {
-				log.Printf("Failed handshake with %s:%d: %v", p.IP, p.Port, err)
-				return
+			r, e := o()
+			mutex.Lock()
+			if e != nil {
+				errors = append(errors, e)
+			} else {
+				result = append(result, r)
 			}
-
-			mu.Lock()
-			connections = append(connections, conn)
-			mu.Unlock()
-		}(p)
+			mutex.Unlock()
+		}(o)
 	}
 
-	wg.Wait()
-	log.Printf("Successfully connected to %d/%d peers", len(connections), len(tracker_response.Peers))
-	return connections
+	wg.Wait() // will wait until all done
+	return result, errors
 }
