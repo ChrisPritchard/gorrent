@@ -59,14 +59,14 @@ func receive_message(conn net.Conn) (peer_message_type, []byte, error) {
 	}
 
 	kind := peer_message_type(received[4])
+	if kind > cancel || kind < choke {
+		return 0, nil, fmt.Errorf("invalid message type received: %d", kind)
+	}
+
 	data := received[5:]
 	return kind, data, nil
 }
 
-// process:
-// get a set of peers
-// keep track of what pieces we have
-// announce to peers what we have
-// get back what each peer has
-// create queued requests to peers for their pieces
-// announce when we have a piece to peers
+func download_from_peer(conn net.Conn) {
+
+}

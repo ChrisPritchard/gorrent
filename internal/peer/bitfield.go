@@ -1,0 +1,19 @@
+package peer
+
+import "fmt"
+
+type BitField struct {
+	data []byte
+}
+
+func (bf *BitField) Set(index uint) error {
+	b := index / 8
+	if b >= uint(len(bf.data)) {
+		return fmt.Errorf("index is out of range of valid bitfield values")
+	}
+	m := index % 8
+	n := 1
+	n = n << m
+	bf.data[b] |= byte(n)
+	return nil
+}
