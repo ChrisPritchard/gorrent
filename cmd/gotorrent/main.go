@@ -53,6 +53,14 @@ func try_download(torrent_file_path string) error {
 		return err
 	}
 
+	err = peer.SendInterested(conns[0])
+	if err != nil {
+		return err
+	}
+
+	// peer.RequestPieces()
+	// peer.ListenAndRespond()
+
 	fmt.Println(remote_field)
 
 	return nil
@@ -60,11 +68,11 @@ func try_download(torrent_file_path string) error {
 
 func get_handshakes(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse) []op[net.Conn] {
 	ops := make([]op[net.Conn], len(tracker_response.Peers))
-	for _, p := range tracker_response.Peers {
+	for i, p := range tracker_response.Peers {
 		local_p := p
-		ops = append(ops, func() (net.Conn, error) {
+		ops[i] = func() (net.Conn, error) {
 			return peer.Handshake(metadata, tracker_response, local_p)
-		})
+		}
 	}
 	return ops
 }

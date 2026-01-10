@@ -68,3 +68,40 @@ func Handshake(metadata torrent.TorrentMetadata, tracker_response tracker.Tracke
 
 	return conn, nil
 }
+
+func ExchangeBitfields(conn net.Conn, local BitField) (remote BitField, err error) {
+	err = send_message(conn, bitfield, local.data)
+	if err != nil {
+		return
+	}
+
+	kind, data, err := receive_message(conn)
+	if err != nil {
+		return
+	}
+	if kind != bitfield {
+		err = fmt.Errorf("expected a bitfield response message from peer, got %d", kind)
+		return
+	}
+
+	remote = BitField{data}
+	return
+}
+
+func SendInterested(conn net.Conn) (err error) {
+	err = send_message(conn, interested, []byte{})
+	if err != nil {
+		return
+	}
+
+	kind, _, err := receive_message(conn)
+	if err != nil {
+		return
+	}
+	if kind != unchoke {
+		err = fmt.Errorf("expected a unchoke response message from peer, got %d", kind)
+		return
+	}
+
+	return
+}

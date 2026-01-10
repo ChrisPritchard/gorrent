@@ -66,22 +66,3 @@ func receive_message(conn net.Conn) (peer_message_type, []byte, error) {
 	data := received[5:]
 	return kind, data, nil
 }
-
-func ExchangeBitfields(conn net.Conn, local BitField) (remote BitField, err error) {
-	err = send_message(conn, bitfield, local.data)
-	if err != nil {
-		return
-	}
-
-	kind, data, err := receive_message(conn)
-	if err != nil {
-		return
-	}
-	if kind != bitfield {
-		err = fmt.Errorf("expected a bitfield response message from peer, got %d", kind)
-		return
-	}
-
-	remote = BitField{data}
-	return
-}
