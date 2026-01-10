@@ -22,11 +22,11 @@ const (
 	cancel
 )
 
-func keep_alive(conn net.Conn) error {
-	to_send := []byte{0, 0, 0, 0}
-	_, err := conn.Write(to_send)
-	return err
-}
+// func keep_alive(conn net.Conn) error {
+// 	to_send := []byte{0, 0, 0, 0}
+// 	_, err := conn.Write(to_send)
+// 	return err
+// }
 
 func send_message(conn net.Conn, kind peer_message_type, data []byte) error {
 	length := len(data) + 1           // 1 for the message type
@@ -67,6 +67,21 @@ func receive_message(conn net.Conn) (peer_message_type, []byte, error) {
 	return kind, data, nil
 }
 
-func download_from_peer(conn net.Conn) {
+func ExchangeBitfields(conn net.Conn, local BitField) (remote BitField, err error) {
+	err = send_message(conn, bitfield, local.data)
+	if err != nil {
+		return
+	}
 
+	kind, data, err := receive_message(conn)
+	if err != nil {
+		return
+	}
+	if kind != bitfield {
+		err = fmt.Errorf("expected a bitfield response message from peer, got %d", kind)
+		return
+	}
+
+	remote = BitField{data}
+	return
 }

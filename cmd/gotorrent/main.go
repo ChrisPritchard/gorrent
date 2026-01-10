@@ -47,7 +47,13 @@ func try_download(torrent_file_path string) error {
 		return fmt.Errorf("failed to connect to a peer")
 	}
 
-	// pass conns to a downloader queue
+	local_field := peer.NewBitfield(len(torrent.Pieces))
+	remote_field, err := peer.ExchangeBitfields(conns[0], local_field)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(remote_field)
 
 	return nil
 }

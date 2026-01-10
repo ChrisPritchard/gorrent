@@ -1,9 +1,17 @@
 package peer
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 type BitField struct {
 	data []byte
+}
+
+func NewBitfield(length int) BitField {
+	b := int(math.Ceil(float64(length) / 8))
+	return BitField{data: make([]byte, b)}
 }
 
 func (bf *BitField) Set(index uint) error {
