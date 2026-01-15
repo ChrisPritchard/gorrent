@@ -44,13 +44,13 @@ type PeerManager struct {
 var block_size = 1 << 14
 
 type PartialPiece struct {
-	hash   []byte
-	offset int64
+	hash   string
+	offset int
 	blocks []bool
 	data   []byte
 }
 
-func CreatePartialPiece(hash []byte, offset, full_length int64) PartialPiece {
+func CreatePartialPiece(hash string, offset, full_length int) PartialPiece {
 	return PartialPiece{
 		hash:   hash,
 		offset: offset,
@@ -59,7 +59,8 @@ func CreatePartialPiece(hash []byte, offset, full_length int64) PartialPiece {
 	}
 }
 
-func (pp *PartialPiece) Set(block_index int, data []byte) error {
+func (pp *PartialPiece) Set(offset int, data []byte) error {
+	block_index := offset / block_size
 	if block_index < 0 || block_index >= len(pp.blocks) {
 		return fmt.Errorf("invalid block index, out of range")
 	}
@@ -82,14 +83,14 @@ func (pp *PartialPiece) Valid() bool {
 		}
 	}
 	hash := sha1.Sum(pp.data)
-	return hash == [20]byte(pp.hash)
+	return string(hash[:]) == pp.hash
 }
 
 func (pp *PartialPiece) WritePiece(file *os.File) error {
 	if !pp.Valid() {
 		return fmt.Errorf("piece is not valid")
 	}
-	_, err := file.Seek(pp.offset, io.SeekStart)
+	_, err := file.Seek(int64(pp.offset), io.SeekStart)
 	if err != nil {
 		return err
 	}

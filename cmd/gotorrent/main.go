@@ -61,7 +61,28 @@ func try_download(torrent_file_path string) error {
 		return err
 	}
 
-	pipeline := make(chan struct{}, 5)
+	// set up all partial pieces
+
+	partials := make([]peer.PartialPiece, len(torrent.Pieces))
+	for i, p := range torrent.Pieces {
+		partials[i] = peer.CreatePartialPiece(p, i*torrent.PieceLength, torrent.PieceLength)
+	}
+
+	// create full file
+	out_file, err := os.Create(torrent.Files[0].Path[0]) // assuming a single file with no directory info
+	if err != nil {
+		return err
+	}
+	defer out_file.Close()
+
+	err = out_file.Truncate(int64(torrent.Files[0].Length)) // create full size file
+	if err != nil {
+		return err
+	}
+
+	// continuously request pieces
+
+	pipeline := make(chan struct{}, 5) // limits the number of concurrent requests
 
 	go func() {
 		for i := range torrent.Pieces {
@@ -90,6 +111,11 @@ func try_download(torrent_file_path string) error {
 			index := binary.BigEndian.Uint32(buffer[5:9])
 			start := binary.BigEndian.Uint32(buffer[9:13])
 			piece := buffer[13:n]
+
+			partials[index].Set(int(start), piece)
+			if partials[index].Valid() {
+				partials[index].WritePiece(out_file)
+			}
 		}
 	}
 
