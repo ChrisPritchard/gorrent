@@ -36,7 +36,13 @@ func send_message(conn net.Conn, kind peer_message_type, data []byte) error {
 	to_send[4] = byte(kind)
 	copy(to_send[5:], data)
 
-	_, err := conn.Write(to_send)
+	n, err := conn.Write(to_send)
+	if err != nil {
+		return err
+	}
+	if n != len(to_send) {
+		return fmt.Errorf("unable to send full message: tried to send %d but actually sent %d", len(to_send), n)
+	}
 	return err
 }
 

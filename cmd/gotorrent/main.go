@@ -57,10 +57,10 @@ func try_download(torrent_file_path string) error {
 	}
 	fmt.Println(remote_field)
 
-	// err = peer.SendInterested(conns[0])
-	// if err != nil {
-	// 	return err
-	// }
+	err = peer.SendInterested(conns[0])
+	if err != nil {
+		return err
+	}
 
 	// set up all partial pieces
 
