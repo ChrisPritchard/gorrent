@@ -55,11 +55,12 @@ func try_download(torrent_file_path string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(remote_field)
 
-	err = peer.SendInterested(conns[0])
-	if err != nil {
-		return err
-	}
+	// err = peer.SendInterested(conns[0])
+	// if err != nil {
+	// 	return err
+	// }
 
 	// set up all partial pieces
 
@@ -69,13 +70,13 @@ func try_download(torrent_file_path string) error {
 	}
 
 	// create full file
-	out_file, err := os.Create(torrent.Files[0].Path[0]) // assuming a single file with no directory info
+	out_file, err := os.Create(torrent.Name) // assuming a single file with no directory info
 	if err != nil {
 		return err
 	}
 	defer out_file.Close()
 
-	err = out_file.Truncate(int64(torrent.Files[0].Length)) // create full size file
+	err = out_file.Truncate(int64(torrent.Length)) // create full size file
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,9 @@ func try_download(torrent_file_path string) error {
 		}
 	}()
 
+	valid_count := 0
 	buffer := make([]byte, 1<<14+5)
+
 	for {
 		n, err := conns[0].Read(buffer)
 		if err != nil {
@@ -115,14 +118,19 @@ func try_download(torrent_file_path string) error {
 			partials[index].Set(int(start), piece)
 			if partials[index].Valid() {
 				partials[index].WritePiece(out_file)
+				valid_count++
 			}
+		}
+
+		if valid_count == len(partials) {
+			break
 		}
 	}
 
 	// peer.RequestPieces()
 	// peer.ListenAndRespond()
 
-	fmt.Println(remote_field)
+	fmt.Println("done")
 
 	return nil
 }
