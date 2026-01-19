@@ -9,9 +9,17 @@ type BitField struct {
 	data []byte
 }
 
-func NewBitfield(length int) BitField {
+func CreateBlankBitfield(length int) BitField {
 	b := int(math.Ceil(float64(length) / 8))
-	return BitField{data: make([]byte, b)}
+	return NewBitfield(make([]byte, b))
+}
+
+func NewBitfield(data []byte) BitField {
+	return BitField{data}
+}
+
+func (bf *BitField) Length() int {
+	return len(bf.data)
 }
 
 func (bf *BitField) Set(index uint) error {

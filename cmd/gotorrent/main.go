@@ -50,7 +50,7 @@ func try_download(torrent_file_path string) error {
 
 	// working with a single conn
 
-	local_field := peer.NewBitfield(len(torrent.Pieces))
+	local_field := peer.CreateBlankBitfield(len(torrent.Pieces))
 	remote_field, err := peer.ExchangeBitfields(conns[0], local_field)
 	if err != nil {
 		return err
@@ -81,56 +81,84 @@ func try_download(torrent_file_path string) error {
 		return err
 	}
 
-	// continuously request pieces
+	// test request
+	err = peer.RequestPiecePart(conns[0], 3, 20, 1<<14)
+	if err != nil {
+		return err
+	}
 
-	pipeline := make(chan struct{}, 5) // limits the number of concurrent requests
-
-	go func() {
-		for i := range torrent.Pieces {
-			for j := 0; j < torrent.PieceLength; j += 1 << 14 {
-				pipeline <- struct{}{}
-				err := peer.RequestPiecePart(conns[0], uint(i), uint(j), uint(torrent.PieceLength))
-				if err != nil {
-					panic(err)
-				}
-			}
-		}
-	}()
-
-	valid_count := 0
+	// test receive
+	var n int
 	buffer := make([]byte, 1<<14+5)
-
 	for {
-		n, err := conns[0].Read(buffer)
+		n, err = conns[0].Read(buffer)
 		if err != nil {
 			return err
 		}
-		if n < 5 {
+		if n == 0 {
 			continue
 		}
+		break
+	}
+	kind := buffer[4]
+	if int(kind) == 7 {
+		index := binary.BigEndian.Uint32(buffer[5:9])
+		start := binary.BigEndian.Uint32(buffer[9:13])
+		piece := buffer[13:n]
 
-		kind := buffer[4]
-		if int(kind) == 7 {
-			index := binary.BigEndian.Uint32(buffer[5:9])
-			start := binary.BigEndian.Uint32(buffer[9:13])
-			piece := buffer[13:n]
-
-			partials[index].Set(int(start), piece)
-			if partials[index].Valid() {
-				partials[index].WritePiece(out_file)
-				valid_count++
-			}
-		}
-
-		if valid_count == len(partials) {
-			break
+		partials[index].Set(int(start), piece)
+		if partials[index].Valid() {
+			partials[index].WritePiece(out_file)
 		}
 	}
 
-	// peer.RequestPieces()
-	// peer.ListenAndRespond()
+	// continuously request pieces
 
-	fmt.Println("done")
+	// pipeline := make(chan struct{}, 5) // limits the number of concurrent requests
+
+	// go func() {
+	// 	for i := range torrent.Pieces {
+	// 		for j := 0; j < torrent.PieceLength; j += 1 << 14 {
+	// 			pipeline <- struct{}{}
+	// 			err := peer.RequestPiecePart(conns[0], uint(i), uint(j), uint(torrent.PieceLength))
+	// 			if err != nil {
+	// 				panic(err)
+	// 			}
+	// 		}
+	// 	}
+	// }()
+
+	// valid_count := 0
+	// buffer := make([]byte, 1<<14+5)
+
+	// for {
+	// 	n, err := conns[0].Read(buffer)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	if n < 5 {
+	// 		continue
+	// 	}
+
+	// 	kind := buffer[4]
+	// 	if int(kind) == 7 {
+	// 		index := binary.BigEndian.Uint32(buffer[5:9])
+	// 		start := binary.BigEndian.Uint32(buffer[9:13])
+	// 		piece := buffer[13:n]
+
+	// 		partials[index].Set(int(start), piece)
+	// 		if partials[index].Valid() {
+	// 			partials[index].WritePiece(out_file)
+	// 			valid_count++
+	// 		}
+	// 	}
+
+	// 	if valid_count == len(partials) {
+	// 		break
+	// 	}
+	// }
+
+	// fmt.Println("done")
 
 	return nil
 }
