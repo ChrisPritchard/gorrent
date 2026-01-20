@@ -136,9 +136,9 @@ func try_download(torrent_file_path string) error {
 				}
 
 				if kind == messaging.MSG_PIECE {
-					index := binary.BigEndian.Uint32(buffer[5:9])
-					start := binary.BigEndian.Uint32(buffer[9:13])
-					piece := buffer[13:]
+					index := binary.BigEndian.Uint32(buffer[0:4])
+					start := binary.BigEndian.Uint32(buffer[4:8])
+					piece := buffer[8:]
 
 					partials[index].Set(int(start), piece)
 					fmt.Printf("piece %d block received\n", index)
@@ -147,6 +147,8 @@ func try_download(torrent_file_path string) error {
 						valid <- true
 						fmt.Printf("piece %d finished\n", index)
 					}
+				} else {
+					fmt.Printf("received an unhandled kind: %d\n", kind)
 				}
 				pipeline <- 1
 			}
