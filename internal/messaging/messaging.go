@@ -1,4 +1,4 @@
-package peer
+package messaging
 
 import (
 	"bufio"
@@ -6,20 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-)
-
-type peer_message_type int
-
-const (
-	choke peer_message_type = iota
-	unchoke
-	interested
-	not_interested
-	have
-	bitfield
-	request
-	piece
-	cancel
 )
 
 // func keep_alive(conn net.Conn) error {
@@ -33,7 +19,7 @@ const (
 // 	return err
 // }
 
-func send_message(conn net.Conn, kind peer_message_type, data []byte) error {
+func SendMessage(conn net.Conn, kind PeerMessageType, data []byte) error {
 	length := len(data) + 1           // 1 for the message type
 	to_send := make([]byte, 4+length) // first four bytes are where we put the length
 	binary.BigEndian.PutUint32(to_send, uint32(length))
@@ -51,7 +37,7 @@ func send_message(conn net.Conn, kind peer_message_type, data []byte) error {
 	return err
 }
 
-func receive_message(conn net.Conn) (peer_message_type, []byte, error) {
+func ReceiveMessage(conn net.Conn) (PeerMessageType, []byte, error) {
 	reader := bufio.NewReader(conn)
 
 	length_buffer := make([]byte, 4)
@@ -81,8 +67,8 @@ func receive_message(conn net.Conn) (peer_message_type, []byte, error) {
 		return 0, nil, fmt.Errorf("was expecting %d bytes, but only received %d", length, n)
 	}
 
-	kind := peer_message_type(received[0])
-	if kind > cancel || kind < choke {
+	kind := PeerMessageType(received[0])
+	if kind > MSG_CANCEL || kind < MSG_CHOKE {
 		return 0, nil, fmt.Errorf("invalid message type received: %d", kind)
 	}
 

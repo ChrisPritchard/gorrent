@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 
+	. "github.com/chrispritchard/gotorrent/internal/bitfields"
 	"github.com/chrispritchard/gotorrent/internal/tracker"
 )
 

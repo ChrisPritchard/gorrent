@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 
+	"github.com/chrispritchard/gotorrent/internal/bitfields"
+	"github.com/chrispritchard/gotorrent/internal/messaging"
 	"github.com/chrispritchard/gotorrent/internal/peer"
 	"github.com/chrispritchard/gotorrent/internal/torrent"
 	"github.com/chrispritchard/gotorrent/internal/tracker"
@@ -39,7 +41,7 @@ func try_download(torrent_file_path string) error {
 		return fmt.Errorf("failed to register with tracker: %v", err)
 	}
 
-	conns := ConnectToPeers(torrent, tracker_response)
+	conns := connect_to_peers(torrent, tracker_response)
 	if len(conns) == 0 {
 		return fmt.Errorf("failed to connect to a peer")
 	}
@@ -59,7 +61,7 @@ func try_download(torrent_file_path string) error {
 
 	// working with a single conn
 
-	local_field := peer.CreateBlankBitfield(len(torrent.Pieces))
+	local_field := bitfields.CreateBlankBitfield(len(torrent.Pieces))
 	remote_field, err := peer.ExchangeBitfields(conns[0], local_field)
 	if err != nil {
 		return err
@@ -109,10 +111,12 @@ func try_download(torrent_file_path string) error {
 				case <-ctx.Done():
 					return
 				case <-pipeline:
-					err = peer.RequestPiecePart(conns[0], uint(i), uint(j), 1<<14)
+					err = request_piece_part(conns[0], uint(i), uint(j), 1<<14)
 					if err != nil {
 						errmsg <- err
 					}
+					// case <-time.After(5 * time.Second):
+					// 	errmsg <- fmt.Errorf("timedout waiting for a request window")
 				}
 			}
 		}
@@ -123,29 +127,18 @@ func try_download(torrent_file_path string) error {
 			select {
 			case <-ctx.Done():
 				return
+			// case <-time.After(5 * time.Second):
+			// 	errmsg <- fmt.Errorf("timedout waiting for a new block")
 			default:
-				var n int
-				buffer := make([]byte, 1<<14+5)
-				for {
-					n, err = conns[0].Read(buffer)
-					if err != nil {
-						errmsg <- err
-					}
-					if n == 0 {
-						continue
-					}
-					break
+				kind, buffer, err := messaging.ReceiveMessage(conns[0])
+				if err != nil {
+					errmsg <- err
 				}
-				length := binary.BigEndian.Uint32(buffer[0:4]) - 4 // exclude length?
-				if length != uint32(n) {
-					errmsg <- fmt.Errorf("received less bytes (%d) than length specified (%d). first 12 bytes: %x", n, length, buffer[0:min(n, 12)])
-					return
-				}
-				kind := buffer[4]
-				if int(kind) == 7 {
+
+				if kind == messaging.MSG_PIECE {
 					index := binary.BigEndian.Uint32(buffer[5:9])
 					start := binary.BigEndian.Uint32(buffer[9:13])
-					piece := buffer[13:n]
+					piece := buffer[13:]
 
 					partials[index].Set(int(start), piece)
 					fmt.Printf("piece %d block received\n", index)
@@ -154,9 +147,8 @@ func try_download(torrent_file_path string) error {
 						valid <- true
 						fmt.Printf("piece %d finished\n", index)
 					}
-
-					pipeline <- 1
 				}
+				pipeline <- 1
 			}
 		}
 	}()
@@ -175,7 +167,7 @@ func try_download(torrent_file_path string) error {
 	return nil
 }
 
-func ConnectToPeers(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse) []net.Conn {
+func connect_to_peers(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse) []net.Conn {
 	ops := make([]util.Op[net.Conn], len(tracker_response.Peers))
 	for i, p := range tracker_response.Peers {
 		local_p := p
@@ -186,4 +178,12 @@ func ConnectToPeers(metadata torrent.TorrentMetadata, tracker_response tracker.T
 
 	conns, _ := util.Concurrent(ops, 20)
 	return conns
+}
+
+func request_piece_part(conn net.Conn, piece_index, start_byte, length uint) error {
+	to_send := make([]byte, 12)
+	binary.BigEndian.PutUint32(to_send[:4], uint32(piece_index))
+	binary.BigEndian.PutUint32(to_send[4:8], uint32(start_byte))
+	binary.BigEndian.PutUint32(to_send[8:], uint32(length))
+	return messaging.SendMessage(conn, messaging.MSG_REQUEST, to_send)
 }

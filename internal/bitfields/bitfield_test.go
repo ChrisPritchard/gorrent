@@ -1,4 +1,4 @@
-package peer
+package bitfields
 
 import (
 	"reflect"
@@ -65,7 +65,7 @@ func TestBitfieldSet(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			bf := BitField{data: tt.state}
+			bf := BitField{Data: tt.state}
 
 			err := bf.Set(tt.index)
 			if (err != nil) != tt.want_err {
@@ -73,8 +73,8 @@ func TestBitfieldSet(t *testing.T) {
 				return
 			}
 
-			if err == nil && !reflect.DeepEqual(bf.data, tt.want) {
-				t.Errorf("parse() = %v, want %v", bf.data, tt.want)
+			if err == nil && !reflect.DeepEqual(bf.Data, tt.want) {
+				t.Errorf("parse() = %v, want %v", bf.Data, tt.want)
 			}
 		})
 	}
@@ -148,7 +148,7 @@ func TestBitfieldGet(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			bf := BitField{data: tt.state}
+			bf := BitField{Data: tt.state}
 
 			r, err := bf.Get(tt.index)
 			if (err != nil) != tt.want_err {
@@ -157,7 +157,7 @@ func TestBitfieldGet(t *testing.T) {
 			}
 
 			if err == nil && r != tt.want {
-				t.Errorf("parse() = %v, want %v", bf.data, tt.want)
+				t.Errorf("parse() = %v, want %v", bf.Data, tt.want)
 			}
 		})
 	}

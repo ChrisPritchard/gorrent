@@ -3,9 +3,12 @@ package peer
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
+	. "github.com/chrispritchard/gotorrent/internal/bitfields"
+	. "github.com/chrispritchard/gotorrent/internal/messaging"
 	"github.com/chrispritchard/gotorrent/internal/torrent"
 	"github.com/chrispritchard/gotorrent/internal/tracker"
 )
@@ -43,11 +46,9 @@ func Handshake(metadata torrent.TorrentMetadata, tracker_response tracker.Tracke
 
 	// recieve their response
 	received := make([]byte, 68)
-	n, err = conn.Read(received)
+	_, err = io.ReadFull(conn, received)
 	if err != nil {
 		return nil, err
-	} else if n != 68 {
-		return nil, fmt.Errorf("did not receive all 68 bytes of handshake")
 	}
 
 	// validate response is the mirror of our own
@@ -70,39 +71,39 @@ func Handshake(metadata torrent.TorrentMetadata, tracker_response tracker.Tracke
 }
 
 func ExchangeBitfields(conn net.Conn, local BitField) (remote BitField, err error) {
-	err = send_message(conn, bitfield, local.data)
+	err = SendMessage(conn, MSG_BITFIELD, local.Data)
 	if err != nil {
 		return
 	}
 
-	kind, data, err := receive_message(conn)
+	kind, data, err := ReceiveMessage(conn)
 	if err != nil {
 		return
 	}
-	if kind != bitfield {
+	if kind != MSG_BITFIELD {
 		err = fmt.Errorf("expected a bitfield response message from peer, got %d", kind)
 		return
 	}
 
-	remote = BitField{data}
-	if local.Length() != remote.Length() {
-		err = fmt.Errorf("remote bitfield has a different length (%d) than local bitfield (%d)", remote.Length(), local.Length())
+	remote = BitField{Data: data}
+	if len(local.Data) != len(remote.Data) {
+		err = fmt.Errorf("remote bitfield has a different length (%d) than local bitfield (%d)", len(remote.Data), len(local.Data))
 	}
 
 	return
 }
 
 func SendInterested(conn net.Conn) (err error) {
-	err = send_message(conn, interested, []byte{})
+	err = SendMessage(conn, MSG_INTERESTED, []byte{})
 	if err != nil {
 		return
 	}
 
-	kind, _, err := receive_message(conn)
+	kind, _, err := ReceiveMessage(conn)
 	if err != nil {
 		return
 	}
-	if kind != unchoke {
+	if kind != MSG_UNCHOKE {
 		err = fmt.Errorf("expected a unchoke response message from peer, got %d", kind)
 		return
 	}
