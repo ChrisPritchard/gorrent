@@ -60,6 +60,10 @@ func CreatePartialPiece(hash string, offset, full_length int) PartialPiece {
 	}
 }
 
+func (pp *PartialPiece) Length() int {
+	return len(pp.blocks)
+}
+
 func (pp *PartialPiece) Set(offset int, data []byte) error {
 	block_index := offset / BLOCK_SIZE
 	if block_index < 0 || block_index >= len(pp.blocks) {

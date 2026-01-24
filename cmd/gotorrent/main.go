@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sync"
 
 	"github.com/chrispritchard/gotorrent/internal/bitfields"
 	"github.com/chrispritchard/gotorrent/internal/messaging"
@@ -53,15 +54,6 @@ func try_download(torrent_file_path string) error {
 		defer c.Close()
 	}
 
-	// a. create local bitfield, and wrap each conn with the remote bitfield
-	// also track in flight messages per peer, so we can cancel them if received else where? if requesting from more than one peer at a time
-	// b. start sending requests, allocating to each peer
-	// c. continuosly recieve from each peer
-	// could just forward this to the central manager, as the data. but if we were to handle 'have' requests or choke requests that would need to be peer peer
-	// d. channel track received pieces, update local bitfield
-	// e. channel to send requests to peers.
-	// should just be kind and data. maybe just the entire message
-
 	// working with a single conn
 
 	local_field := bitfields.CreateBlankBitfield(len(torrent.Pieces))
@@ -80,7 +72,9 @@ func try_download(torrent_file_path string) error {
 
 	partials := make([]peer.PartialPiece, len(torrent.Pieces))
 	for i, p := range torrent.Pieces {
-		partials[i] = peer.CreatePartialPiece(p, i*torrent.PieceLength, torrent.PieceLength)
+		begin := i * torrent.PieceLength
+		length := min(begin+torrent.PieceLength, torrent.Length) - begin
+		partials[i] = peer.CreatePartialPiece(p, begin, length)
 	}
 
 	// create full file
@@ -99,24 +93,22 @@ func try_download(torrent_file_path string) error {
 	for range 5 {
 		pipeline <- 1
 	}
-	errmsg := make(chan error)
-	valid := make(chan bool)
-	received := 0
+
+	var wg sync.WaitGroup
+	wg.Add(len(torrent.Pieces))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pieces_per_block := torrent.PieceLength / peer.BLOCK_SIZE
-
 	go func() {
-		for i := range len(torrent.Pieces) {
-			for j := range pieces_per_block {
+		for i, p := range partials {
+			for j := range p.Length() {
 				select {
 				case <-ctx.Done():
 					return
 				case <-pipeline:
 					err = request_piece_part(conns[0], i, j*peer.BLOCK_SIZE, peer.BLOCK_SIZE)
 					if err != nil {
-						errmsg <- err
+						panic(err)
 					}
 					// case <-time.After(5 * time.Second):
 					// 	errmsg <- fmt.Errorf("timedout waiting for a request window")
@@ -135,7 +127,7 @@ func try_download(torrent_file_path string) error {
 			default:
 				kind, buffer, err := messaging.ReceiveMessage(conns[0])
 				if err != nil {
-					errmsg <- err
+					panic(err)
 				}
 
 				if kind == messaging.MSG_PIECE {
@@ -147,8 +139,8 @@ func try_download(torrent_file_path string) error {
 					fmt.Printf("piece %d block received\n", index)
 					if partials[index].Valid() {
 						partials[index].WritePiece(out_file)
-						valid <- true
 						fmt.Printf("piece %d finished\n", index)
+						wg.Done()
 					}
 				} else {
 					fmt.Printf("received an unhandled kind: %d\n", kind)
@@ -158,16 +150,19 @@ func try_download(torrent_file_path string) error {
 		}
 	}()
 
-	select {
-	case e := <-errmsg:
-		return e
-	case <-valid:
-		received++
-		if received == len(torrent.Pieces) {
-			fmt.Println("done")
-			return nil
-		}
-	}
+	// select {
+	// case e := <-errmsg:
+	// 	return e
+	// case <-valid:
+	// 	received++
+	// 	if received == len(torrent.Pieces) {
+	// 		fmt.Println("done")
+	// 		return nil
+	// 	}
+	// }
+
+	wg.Wait()
+	fmt.Println("done")
 
 	return nil
 }
