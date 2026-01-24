@@ -12,6 +12,8 @@ import (
 	"github.com/chrispritchard/gotorrent/internal/tracker"
 )
 
+var BLOCK_SIZE = 1 << 14
+
 type PeerDetails struct {
 	tracker.PeerInfo
 
@@ -42,8 +44,6 @@ type PeerManager struct {
 	Requesting map[int]struct{}
 }
 
-var block_size = 1 << 14
-
 type PartialPiece struct {
 	hash   string
 	offset int
@@ -55,25 +55,28 @@ func CreatePartialPiece(hash string, offset, full_length int) PartialPiece {
 	return PartialPiece{
 		hash:   hash,
 		offset: offset,
-		blocks: make([]bool, int(math.Ceil(float64(full_length)/float64(block_size)))),
+		blocks: make([]bool, int(math.Ceil(float64(full_length)/float64(BLOCK_SIZE)))),
 		data:   make([]byte, full_length),
 	}
 }
 
 func (pp *PartialPiece) Set(offset int, data []byte) error {
-	block_index := offset / block_size
+	block_index := offset / BLOCK_SIZE
 	if block_index < 0 || block_index >= len(pp.blocks) {
 		return fmt.Errorf("invalid block index, out of range")
 	}
-	if len(data) > block_size {
+	if len(data) > BLOCK_SIZE {
 		return fmt.Errorf("data is too large for a single block")
 	}
+	// if pp.blocks[block_index] {
+	// 	panic("existing block redownloaded")
+	// }
 	pp.blocks[block_index] = true
-	target := pp.data[block_index*block_size:]
+	target := pp.data[block_index*BLOCK_SIZE:]
 	if len(target) < len(data) {
 		return fmt.Errorf("data is too large for the target location") // should only be possible for the last block if truncated
 	}
-	copy(pp.data[block_index*block_size:], data)
+	copy(pp.data[block_index*BLOCK_SIZE:], data)
 	return nil
 }
 

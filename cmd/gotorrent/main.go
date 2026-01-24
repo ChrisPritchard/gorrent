@@ -17,6 +17,9 @@ import (
 
 func main() {
 	file := "c:\\users\\chris\\onedrive\\desktop\\test.torrent"
+	if _, err := os.Stat("ScreenToGif.exe"); err == nil {
+		os.Remove("ScreenToGif.exe")
+	}
 
 	err := try_download(file)
 	if err != nil {
@@ -102,7 +105,7 @@ func try_download(torrent_file_path string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pieces_per_block := torrent.PieceLength / (1 << 14)
+	pieces_per_block := torrent.PieceLength / peer.BLOCK_SIZE
 
 	go func() {
 		for i := range len(torrent.Pieces) {
@@ -111,7 +114,7 @@ func try_download(torrent_file_path string) error {
 				case <-ctx.Done():
 					return
 				case <-pipeline:
-					err = request_piece_part(conns[0], uint(i), uint(j), 1<<14)
+					err = request_piece_part(conns[0], i, j*peer.BLOCK_SIZE, peer.BLOCK_SIZE)
 					if err != nil {
 						errmsg <- err
 					}
@@ -137,10 +140,10 @@ func try_download(torrent_file_path string) error {
 
 				if kind == messaging.MSG_PIECE {
 					index := binary.BigEndian.Uint32(buffer[0:4])
-					start := binary.BigEndian.Uint32(buffer[4:8])
+					begin := binary.BigEndian.Uint32(buffer[4:8])
 					piece := buffer[8:]
 
-					partials[index].Set(int(start), piece)
+					partials[index].Set(int(begin), piece)
 					fmt.Printf("piece %d block received\n", index)
 					if partials[index].Valid() {
 						partials[index].WritePiece(out_file)
@@ -182,10 +185,10 @@ func connect_to_peers(metadata torrent.TorrentMetadata, tracker_response tracker
 	return conns
 }
 
-func request_piece_part(conn net.Conn, piece_index, start_byte, length uint) error {
+func request_piece_part(conn net.Conn, index, begin, length int) error {
 	to_send := make([]byte, 12)
-	binary.BigEndian.PutUint32(to_send[:4], uint32(piece_index))
-	binary.BigEndian.PutUint32(to_send[4:8], uint32(start_byte))
+	binary.BigEndian.PutUint32(to_send[:4], uint32(index))
+	binary.BigEndian.PutUint32(to_send[4:8], uint32(begin))
 	binary.BigEndian.PutUint32(to_send[8:], uint32(length))
 	return messaging.SendMessage(conn, messaging.MSG_REQUEST, to_send)
 }
