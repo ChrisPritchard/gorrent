@@ -8,17 +8,6 @@ import (
 	"net"
 )
 
-// func keep_alive(conn net.Conn) error {
-// 	to_send := []byte{0, 0, 0, 0}
-// 	_, err := conn.Write(to_send)
-// 	return err
-// }
-
-// func keep_alive(conn net.Conn) error {
-// 	_, err := conn.Write([]byte{})
-// 	return err
-// }
-
 func SendMessage(conn net.Conn, kind PeerMessageType, data []byte) error {
 	length := len(data) + 1           // 1 for the message type
 	to_send := make([]byte, 4+length) // first four bytes are where we put the length
