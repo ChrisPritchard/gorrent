@@ -86,6 +86,16 @@ func (pp *PartialPiece) Valid() bool {
 	return string(hash[:]) == pp.hash
 }
 
+func (pp *PartialPiece) Missing() []int {
+	missing := []int{}
+	for i, b := range pp.blocks {
+		if !b {
+			missing = append(missing, i)
+		}
+	}
+	return missing
+}
+
 func (pp *PartialPiece) WritePiece(file *os.File) error {
 	if !pp.Valid() {
 		return fmt.Errorf("piece is not valid")

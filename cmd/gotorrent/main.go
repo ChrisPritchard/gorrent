@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/chrispritchard/gotorrent/internal/bitfields"
 	"github.com/chrispritchard/gotorrent/internal/messaging"
@@ -61,11 +62,8 @@ func try_download(torrent_file_path string) error {
 		defer p.Close()
 	}
 
-	// set up all partial pieces
-
-	partials := peer.CreatePartialPieces(torrent.Pieces, torrent.PieceLength, torrent.Length)
-
 	// create full file
+
 	out_file, err := os.Create(torrent.Name) // assuming a single file with no directory info
 	if err != nil {
 		return err
@@ -77,15 +75,26 @@ func try_download(torrent_file_path string) error {
 		return err
 	}
 
+	// start requesting pieces
+
+	partials := peer.CreatePartialPieces(torrent.Pieces, torrent.PieceLength, torrent.Length)
 	pipeline := make(chan int, 5) // concurrent requests
 	for range 5 {
 		pipeline <- 1
 	}
 	go start_requesting_pieces(ctx, peers, partials, pipeline)
 
+	ticker := time.NewTicker(5 * time.Second)
 	finished_pieces := 0
 	for {
 		select {
+		case <-ticker.C:
+			for i, p := range partials {
+				if !p.Valid() {
+					fmt.Printf("partial %d is invalid\n", i)
+					fmt.Printf("\tmissing: %v\n", p.Missing())
+				}
+			}
 		case received := <-received_channel:
 			if received.Kind == messaging.MSG_PIECE {
 				index := binary.BigEndian.Uint32(received.Data[0:4])
@@ -100,6 +109,7 @@ func try_download(torrent_file_path string) error {
 					finished_pieces++
 					if finished_pieces == len(torrent.Pieces) {
 						fmt.Println("done")
+						ticker.Stop()
 						return nil
 					}
 				}
