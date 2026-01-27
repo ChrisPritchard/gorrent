@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/chrispritchard/gotorrent/internal/bitfields"
@@ -106,14 +104,13 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 
 	// start requesting pieces
 
-	mu := sync.Mutex{}
-	requested := map[int]map[int]struct{}{}
+	requests := peer.CreateEmptyRequestMap()
 	partials := peer.CreatePartialPieces(metadata.Pieces, metadata.PieceLength, metadata.Length)
 	pipeline := make(chan int, 5) // concurrent requests
 	for range 5 {
 		pipeline <- 1
 	}
-	go start_requesting_pieces(ctx, peers, partials, pipeline, &mu, requested)
+	go start_requesting_pieces(ctx, peers, partials, pipeline, &requests)
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -121,9 +118,9 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 	for {
 		select {
 		case <-ticker.C:
-			print_status(partials, requested)
+			print_status(partials, requests)
 		case received := <-received_channel:
-			piece_finished := handle_received(received, &mu, requested, partials, out_file)
+			piece_finished := handle_received(received, &requests, partials, out_file)
 			if piece_finished {
 				finished_pieces++
 				if finished_pieces == len(metadata.Pieces) {
@@ -138,20 +135,11 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 	}
 }
 
-func handle_received(received messaging.Received, mu *sync.Mutex, requested map[int]map[int]struct{}, partials []peer.PartialPiece, out_file *os.File) (piece_finished bool) {
+func handle_received(received messaging.Received, requests *peer.RequestMap, partials []peer.PartialPiece, out_file *os.File) (piece_finished bool) {
 	piece_finished = false
 	if received.Kind == messaging.MSG_PIECE {
-		index := binary.BigEndian.Uint32(received.Data[0:4])
-		begin := binary.BigEndian.Uint32(received.Data[4:8])
-		piece := received.Data[8:]
-
-		mu.Lock()
-		p := requested[int(index)]
-		delete(p, int(begin))
-		if len(p) == 0 {
-			delete(requested, int(index))
-		}
-		mu.Unlock()
+		index, begin, piece := received.AsPiece()
+		requests.Clear(index, begin)
 
 		partials[index].Set(int(begin), piece)
 		fmt.Printf("piece %d block received\n", index)
@@ -166,7 +154,7 @@ func handle_received(received messaging.Received, mu *sync.Mutex, requested map[
 	return
 }
 
-func print_status(partials []peer.PartialPiece, requested map[int]map[int]struct{}) {
+func print_status(partials []peer.PartialPiece, requests peer.RequestMap) {
 	for i, p := range partials {
 		if !p.Valid() {
 			fmt.Printf("partial %d is invalid\n", i)
@@ -174,9 +162,9 @@ func print_status(partials []peer.PartialPiece, requested map[int]map[int]struct
 		}
 	}
 	fmt.Printf("requested:\n")
-	for k, v := range requested {
+	for k, v := range requests.Pieces() {
 		var indices strings.Builder
-		for k2 := range v {
+		for _, k2 := range v {
 			indices.WriteString(strconv.Itoa(k2) + " ")
 		}
 		fmt.Printf("\t%d: %s\n", k, indices.String())
@@ -184,7 +172,7 @@ func print_status(partials []peer.PartialPiece, requested map[int]map[int]struct
 	fmt.Println()
 }
 
-func start_requesting_pieces(ctx context.Context, peers []peer.PeerHandler, partials []peer.PartialPiece, pipeline <-chan int, mu *sync.Mutex, requested map[int]map[int]struct{}) error {
+func start_requesting_pieces(ctx context.Context, peers []peer.PeerHandler, partials []peer.PartialPiece, pipeline <-chan int, requests *peer.RequestMap) error {
 	for i, p := range partials {
 		for j := range p.Length() {
 			select {
@@ -192,14 +180,7 @@ func start_requesting_pieces(ctx context.Context, peers []peer.PeerHandler, part
 				return nil
 			case <-pipeline:
 				err := peers[0].RequestPieceBlock(i, j*peer.BLOCK_SIZE, p.BlockSize(j))
-				mu.Lock()
-				if e, ok := requested[i]; ok {
-					e[j*peer.BLOCK_SIZE] = struct{}{}
-				} else {
-					requested[i] = map[int]struct{}{}
-					requested[i][j*peer.BLOCK_SIZE] = struct{}{}
-				}
-				mu.Unlock()
+				requests.Set(i, j*peer.BLOCK_SIZE)
 				fmt.Printf("requested block %d of piece %d\n", j, i)
 				if err != nil {
 					return err

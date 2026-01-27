@@ -8,13 +8,6 @@ import (
 	"net"
 )
 
-type Received struct {
-	Kind PeerMessageType
-	Data []byte
-}
-
-var nil_received Received
-
 func SendMessage(conn net.Conn, kind PeerMessageType, data []byte) error {
 	length := len(data) + 1           // 1 for the message type
 	to_send := make([]byte, 4+length) // first four bytes are where we put the length
