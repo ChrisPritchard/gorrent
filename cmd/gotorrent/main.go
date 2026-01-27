@@ -112,6 +112,7 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 	}
 	go start_requesting_pieces(ctx, peers, partials, pipeline, &requests)
 
+	keep_alive := time.NewTicker(2 * time.Minute)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	finished_pieces := 0
@@ -119,6 +120,10 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 		select {
 		case <-ticker.C:
 			print_status(partials, &requests)
+		case <-keep_alive.C:
+			for _, p := range peers {
+				p.SendKeepAlive()
+			}
 		case received := <-received_channel:
 			piece_finished := handle_received(received, &requests, partials, out_file)
 			if piece_finished {

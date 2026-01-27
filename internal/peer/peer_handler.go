@@ -72,6 +72,11 @@ func (p *PeerHandler) StartReceiving(ctx context.Context, received_channnel chan
 	}()
 }
 
+func (p *PeerHandler) SendKeepAlive() error {
+	_, err := p.conn.Write([]byte{})
+	return err
+}
+
 func (p *PeerHandler) Close() error {
 	return p.conn.Close()
 }
