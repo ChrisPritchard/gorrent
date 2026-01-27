@@ -123,7 +123,7 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 			piece_finished := handle_received(received, &requests, partials, out_file)
 			if piece_finished {
 				finished_pieces++
-				if finished_pieces == len(metadata.Pieces) {
+				if finished_pieces == len(partials) {
 					fmt.Println("done")
 					return nil
 				}

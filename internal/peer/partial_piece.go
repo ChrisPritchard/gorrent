@@ -20,9 +20,10 @@ type PartialPiece struct {
 }
 
 func CreatePartialPieces(hashes []string, piece_length, total_pieces_length int) []PartialPiece {
-	result := make([]PartialPiece, len(hashes))
+	total_pieces := 100 // len(hashes)
+	result := make([]PartialPiece, total_pieces)
 	last_size := total_pieces_length % piece_length
-	for i := range hashes {
+	for i := range total_pieces {
 		length := piece_length
 		if i == len(hashes)-1 && last_size != 0 {
 			length = last_size
