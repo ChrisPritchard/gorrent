@@ -24,7 +24,17 @@ func (r *RequestMap) Set(piece, offset int) {
 	r.mutex.Unlock()
 }
 
-func (r *RequestMap) Clear(piece, offset int) {
+func (r *RequestMap) Has(piece, offset int) bool {
+	r.mutex.Lock()
+	e, ok := r.data[piece]
+	if !ok {
+		return false
+	}
+	_, ok = e[offset]
+	return ok
+}
+
+func (r *RequestMap) Delete(piece, offset int) {
 	r.mutex.Lock()
 	p, ok := r.data[piece]
 	if ok {

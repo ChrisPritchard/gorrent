@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"strings"
@@ -30,7 +31,6 @@ func main() {
 }
 
 func try_download(torrent_file_path string) error {
-
 	metadata, err := parse_torrent(torrent_file_path)
 	tracker_info, err := tracker.CallTracker(metadata)
 	if err != nil {
@@ -106,11 +106,7 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 
 	requests := peer.CreateEmptyRequestMap()
 	partials := peer.CreatePartialPieces(metadata.Pieces, metadata.PieceLength, metadata.Length)
-	pipeline := make(chan int, 5) // concurrent requests
-	for range 5 {
-		pipeline <- 1
-	}
-	go start_requesting_pieces(ctx, peers, partials, pipeline, &requests)
+	go start_requesting_pieces(ctx, peers, partials, &requests)
 
 	keep_alive := time.NewTicker(2 * time.Minute)
 	ticker := time.NewTicker(5 * time.Second)
@@ -125,7 +121,7 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 				p.SendKeepAlive()
 			}
 		case received := <-received_channel:
-			piece_finished := handle_received(received, &requests, partials, out_file)
+			piece_finished := handle_received(received, &requests, peers, partials, out_file)
 			if piece_finished {
 				finished_pieces++
 				if finished_pieces == len(partials) {
@@ -134,25 +130,32 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 					return nil
 				}
 			}
-			pipeline <- 1
 		case err := <-error_channel:
 			return err
 		}
 	}
 }
 
-func handle_received(received messaging.Received, requests *peer.RequestMap, partials []peer.PartialPiece, out_file *os.File) (piece_finished bool) {
+func handle_received(received messaging.Received, requests *peer.RequestMap, peers []*peer.PeerHandler, partials []*peer.PartialPiece, out_file *os.File) (piece_finished bool) {
 	piece_finished = false
 	if received.Kind == messaging.MSG_PIECE {
 		index, begin, piece := received.AsPiece()
-		requests.Clear(index, begin)
+		requests.Delete(index, begin)
+		for i := range peers {
+			peers[i].CancelRequest(index, begin, len(piece)) // todo error handle
+		}
 
 		partials[index].Set(int(begin), piece)
 		fmt.Printf("piece %d block received\n", index)
+
 		if partials[index].Valid() {
 			partials[index].WritePiece(out_file)
 			piece_finished = true
 			fmt.Printf("piece %d finished\n", index)
+
+			for i := range peers {
+				peers[i].SendHave(index) // todo error handle
+			}
 		}
 	} else {
 		fmt.Printf("received an unhandled kind: %d\n", received.Kind)
@@ -160,7 +163,7 @@ func handle_received(received messaging.Received, requests *peer.RequestMap, par
 	return
 }
 
-func print_status(partials []peer.PartialPiece, requests *peer.RequestMap) {
+func print_status(partials []*peer.PartialPiece, requests *peer.RequestMap) {
 	for i, p := range partials {
 		if !p.Done && !p.Valid() {
 			fmt.Printf("partial %d is invalid\n", i)
@@ -178,30 +181,51 @@ func print_status(partials []peer.PartialPiece, requests *peer.RequestMap) {
 	fmt.Println()
 }
 
-func start_requesting_pieces(ctx context.Context, peers []peer.PeerHandler, partials []peer.PartialPiece, pipeline <-chan int, requests *peer.RequestMap) error {
-	for i, p := range partials {
-		for j := range p.Length() {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-pipeline:
-				err := peers[0].RequestPieceBlock(i, j*peer.BLOCK_SIZE, p.BlockSize(j))
-				requests.Set(i, j*peer.BLOCK_SIZE)
-				fmt.Printf("requested block %d of piece %d\n", j, i)
-				if err != nil {
-					return err
+func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, partials []*peer.PartialPiece, requests *peer.RequestMap) error {
+	count := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if count == 5 {
+				time.Sleep(time.Second)
+				count = 0
+				continue
+			}
+			piece_index := rand.IntN(len(partials))
+			if partials[piece_index].Done {
+				continue
+			}
+			valid_peers := []*peer.PeerHandler{}
+			for i := range peers {
+				if peers[i].HasPiece(piece_index) {
+					valid_peers = append(valid_peers, peers[i])
 				}
 			}
+			if len(valid_peers) == 0 {
+				return fmt.Errorf("no peer has piece %d", piece_index)
+			}
+			peer_index := rand.IntN(len(valid_peers))
+			block_offset := partials[piece_index].Missing()[0]
+
+			err := peers[peer_index].RequestPieceBlock(piece_index, block_offset, partials[piece_index].BlockSize(block_offset))
+			if err != nil {
+				return err
+			}
+
+			requests.Set(piece_index, block_offset)
+			fmt.Printf("requested block offset %d of piece %d\n", block_offset, piece_index)
+			count++
 		}
 	}
-	return nil
 }
 
-func connect_to_peers(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse, local_bitfield bitfields.BitField) []peer.PeerHandler {
-	ops := make([]util.Op[peer.PeerHandler], len(tracker_response.Peers))
+func connect_to_peers(metadata torrent.TorrentMetadata, tracker_response tracker.TrackerResponse, local_bitfield bitfields.BitField) []*peer.PeerHandler {
+	ops := make([]util.Op[*peer.PeerHandler], len(tracker_response.Peers))
 	for i, p := range tracker_response.Peers {
 		local_p := p
-		ops[i] = func() (peer.PeerHandler, error) {
+		ops[i] = func() (*peer.PeerHandler, error) {
 			return peer.ConnectToPeer(local_p, metadata.InfoHash[:], tracker_response.LocalID, local_bitfield)
 		}
 	}

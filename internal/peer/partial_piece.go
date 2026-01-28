@@ -19,9 +19,9 @@ type PartialPiece struct {
 	Done        bool
 }
 
-func CreatePartialPieces(hashes []string, piece_length, total_pieces_length int) []PartialPiece {
-	total_pieces := 1 // len(hashes)
-	result := make([]PartialPiece, total_pieces)
+func CreatePartialPieces(hashes []string, piece_length, total_pieces_length int) []*PartialPiece {
+	total_pieces := len(hashes)
+	result := make([]*PartialPiece, total_pieces)
 	last_size := total_pieces_length % piece_length
 	for i := range total_pieces {
 		length := piece_length
@@ -33,7 +33,7 @@ func CreatePartialPieces(hashes []string, piece_length, total_pieces_length int)
 	return result
 }
 
-func new_partial_piece(hash string, offset, full_length int) PartialPiece {
+func new_partial_piece(hash string, offset, full_length int) *PartialPiece {
 	block_count := int(math.Ceil(float64(full_length) / float64(BLOCK_SIZE)))
 	last_size := full_length % BLOCK_SIZE
 	sizes := make([]int, block_count)
@@ -44,7 +44,7 @@ func new_partial_piece(hash string, offset, full_length int) PartialPiece {
 			sizes[i] = BLOCK_SIZE
 		}
 	}
-	return PartialPiece{
+	return &PartialPiece{
 		hash:        hash,
 		offset:      offset,
 		blocks:      make([]bool, block_count),
