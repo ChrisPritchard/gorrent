@@ -12,7 +12,7 @@ import (
 )
 
 type PeerHandler struct {
-	id       string
+	Id       string
 	bitfield BitField
 	conn     net.Conn
 	requests RequestMap
@@ -56,7 +56,7 @@ func (p *PeerHandler) CancelRequest(index, begin, length int) error {
 
 func (p *PeerHandler) RequestPieceBlock(index, begin, length int) error {
 	if !p.HasPiece(index) {
-		return fmt.Errorf("peer %s does not have the requested piece with index %d", p.id, index)
+		return fmt.Errorf("peer %s does not have the requested piece with index %d", p.Id, index)
 	}
 	p.requests.Set(index, begin) // for later cancellation
 

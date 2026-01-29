@@ -19,7 +19,7 @@ func SendMessage(conn net.Conn, kind PeerMessageType, data []byte) error {
 
 	deadline := time.Now().Add(5 * time.Second)
 	conn.SetWriteDeadline(deadline)
-	defer conn.SetWriteDeadline(time.Time{}) // Reset
+	defer conn.SetWriteDeadline(time.Time{})
 
 	n, err := conn.Write(to_send)
 	if err != nil {

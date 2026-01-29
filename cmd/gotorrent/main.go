@@ -206,7 +206,8 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 					continue
 				}
 				piece_index := rand.IntN(len(partials))
-				if partials[piece_index].Done {
+				partial := partials[piece_index]
+				if partial.Done {
 					continue
 				}
 				valid_peers := []*peer.PeerHandler{}
@@ -220,16 +221,19 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 					return
 				}
 				peer_index := rand.IntN(len(valid_peers))
-				block_offset := partials[piece_index].Missing()[0]
+				valid_peer := valid_peers[peer_index]
+				block_index := partial.Missing()[0]
+				block_offset := block_index * peer.BLOCK_SIZE
+				block_size := partial.BlockSize(block_index)
 
-				err := peers[peer_index].RequestPieceBlock(piece_index, block_offset, partials[piece_index].BlockSize(block_offset))
+				err := valid_peer.RequestPieceBlock(piece_index, block_offset, block_size)
 				if err != nil {
 					error_channel <- err
 					return
 				}
 
 				requests.Set(piece_index, block_offset)
-				fmt.Printf("requested block offset %d of piece %d\n", block_offset, piece_index)
+				fmt.Printf("requested block %d/%d of piece %d from peer %s\n", block_index+1, partial.Length(), piece_index, valid_peer.Id)
 				count++
 			}
 		}

@@ -54,6 +54,7 @@ func new_partial_piece(hash string, offset, full_length int) *PartialPiece {
 	}
 }
 
+// Length returns the number of blocks in this piece, filled or otherwise
 func (pp *PartialPiece) Length() int {
 	return len(pp.blocks)
 }
@@ -89,6 +90,7 @@ func (pp *PartialPiece) Valid() bool {
 	return string(hash[:]) == pp.hash
 }
 
+// Missing returns the index of missing blocks
 func (pp *PartialPiece) Missing() []int {
 	missing := []int{}
 	for i, b := range pp.blocks {
