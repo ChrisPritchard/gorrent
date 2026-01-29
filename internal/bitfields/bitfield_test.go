@@ -16,7 +16,7 @@ func TestBitfieldSet(t *testing.T) {
 		{
 			name:     "single byte set",
 			state:    []byte{0},
-			index:    4,
+			index:    3,
 			want:     []byte{0b00010000},
 			want_err: false,
 		},
@@ -24,7 +24,7 @@ func TestBitfieldSet(t *testing.T) {
 		{
 			name:     "single byte reset",
 			state:    []byte{0b00010000},
-			index:    4,
+			index:    3,
 			want:     []byte{0b00010000},
 			want_err: false,
 		},
@@ -49,7 +49,7 @@ func TestBitfieldSet(t *testing.T) {
 			name:     "multi byte set",
 			state:    []byte{0, 0, 0},
 			index:    12,
-			want:     []byte{0, 0b00010000, 0},
+			want:     []byte{0, 0b00001000, 0},
 			want_err: false,
 		},
 
@@ -90,14 +90,14 @@ func TestBitfieldGet(t *testing.T) {
 		{
 			name:  "single byte get true",
 			state: []byte{0b00010000},
-			index: 4,
+			index: 3,
 			want:  true,
 		},
 
 		{
 			name:  "single byte get false",
 			state: []byte{0},
-			index: 4,
+			index: 3,
 			want:  false,
 		},
 
@@ -118,7 +118,7 @@ func TestBitfieldGet(t *testing.T) {
 		{
 			name:  "multi byte get true",
 			state: []byte{0, 0b00010000, 0},
-			index: 12,
+			index: 11,
 			want:  true,
 		},
 
@@ -134,6 +134,13 @@ func TestBitfieldGet(t *testing.T) {
 			state: []byte{0, 0, 0},
 			index: 153,
 			want:  false,
+		},
+
+		{
+			name:  "large max byte valid",
+			state: []byte("\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xc0"),
+			index: 697,
+			want:  true,
 		},
 	}
 

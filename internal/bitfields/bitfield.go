@@ -25,7 +25,7 @@ func (bf *BitField) Set(index uint) error {
 	}
 	m := index % 8
 	n := 1
-	n = n << m
+	n = n << (7 - m)
 	bf.Data[b] |= byte(n)
 	return nil
 }
@@ -40,7 +40,7 @@ func (bf *BitField) Get(index int) bool {
 	}
 	m := index % 8
 	n := 1
-	n = n << m
+	n = n << (7 - m)
 	res := bf.Data[b] & byte(n)
 	return res != 0
 }
