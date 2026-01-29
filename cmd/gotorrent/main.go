@@ -110,6 +110,11 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 		return fmt.Errorf("failed to connect to a peer")
 	}
 
+	pipeline := make(chan int, 5) // rate-limiting requests to received
+	for range 5 {
+		pipeline <- 1
+	}
+
 	for _, p := range peers {
 		p.StartReceiving(ctx, received_channel, error_channel)
 		defer p.Close()
@@ -117,7 +122,7 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 
 	requests := peer.CreateEmptyRequestMap()
 	partials := peer.CreatePartialPieces(metadata.Pieces, metadata.PieceLength, metadata.Length)
-	start_requesting_pieces(ctx, peers, partials, &requests, error_channel)
+	start_requesting_pieces(ctx, peers, partials, &requests, error_channel, pipeline)
 
 	keep_alive := time.NewTicker(2 * time.Minute)
 	ticker := time.NewTicker(5 * time.Second)
@@ -141,6 +146,7 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 					return nil
 				}
 			}
+			pipeline <- 1
 		case err := <-error_channel:
 			return err
 		}
@@ -192,19 +198,13 @@ func print_status(partials []*peer.PartialPiece, requests *peer.RequestMap) {
 	fmt.Println()
 }
 
-func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, partials []*peer.PartialPiece, requests *peer.RequestMap, error_channel chan<- error) {
+func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, partials []*peer.PartialPiece, requests *peer.RequestMap, error_channel chan<- error, pipeline <-chan int) {
 	go func() {
-		count := 0
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
-				if count == 5 {
-					time.Sleep(50 * time.Millisecond)
-					count = 0
-					continue
-				}
+			case <-pipeline:
 				piece_index := rand.IntN(len(partials))
 				partial := partials[piece_index]
 				if partial.Done {
@@ -234,7 +234,6 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 
 				requests.Set(piece_index, block_offset)
 				fmt.Printf("requested block %d/%d of piece %d from peer %s\n", block_index+1, partial.Length(), piece_index, valid_peer.Id)
-				count++
 			}
 		}
 	}()
