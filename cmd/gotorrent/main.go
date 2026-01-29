@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -18,6 +20,7 @@ import (
 )
 
 func main() {
+
 	file := "c:\\users\\chris\\onedrive\\desktop\\test.torrent"
 	if _, err := os.Stat("ScreenToGif.exe"); err == nil {
 		os.Remove("ScreenToGif.exe")
@@ -26,6 +29,16 @@ func main() {
 	err := try_download(file)
 	if err != nil {
 		fmt.Printf("unable to download via torrent file: %v", err)
+		os.Exit(1)
+	}
+
+	orig_hash := "c5255beede8949d1ac8da7b4ae80d3c46fe2ccb8"
+	f, _ := os.ReadFile("ScreenToGif.exe")
+	new_hash := sha1.Sum(f)
+	if hex.EncodeToString(new_hash[:]) == orig_hash {
+		fmt.Println("success! file integrity checked and matches")
+	} else {
+		fmt.Printf("failure! file hash doesnt match original")
 		os.Exit(1)
 	}
 }
@@ -188,7 +201,7 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 				return
 			default:
 				if count == 5 {
-					time.Sleep(time.Second)
+					time.Sleep(100 * time.Millisecond)
 					count = 0
 					continue
 				}
