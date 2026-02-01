@@ -32,7 +32,7 @@ func SendMessage(conn net.Conn, kind PeerMessageType, data []byte) error {
 
 func ReceiveMessage(conn net.Conn) (Received, error) {
 
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	conn.SetReadDeadline(deadline)
 	defer conn.SetReadDeadline(time.Time{})
 

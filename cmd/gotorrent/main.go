@@ -110,8 +110,8 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 		return fmt.Errorf("failed to connect to a peer")
 	}
 
-	pipeline := make(chan int, 5) // rate-limiting requests to received
-	for range 5 {
+	pipeline := make(chan int, 20) // rate-limiting requests to received
+	for range 20 {
 		pipeline <- 1
 	}
 
@@ -151,7 +151,10 @@ func start_state_machine(metadata torrent.TorrentMetadata, tracker_info tracker.
 			}
 			pipeline <- 1
 		case err := <-error_channel:
-			return err
+			fmt.Printf("received err: %v, adding to pipeline\n", err)
+			for range 20 {
+				pipeline <- 1
+			}
 		}
 	}
 }
@@ -227,7 +230,7 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 				}
 				if len(valid_peers) == 0 {
 					error_channel <- fmt.Errorf("no peer has piece %d", piece_index)
-					return
+					continue
 				}
 				peer_index := rand.IntN(len(valid_peers))
 				valid_peer := valid_peers[peer_index]
@@ -238,7 +241,7 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 				err := valid_peer.RequestPieceBlock(piece_index, block_offset, block_size)
 				if err != nil {
 					error_channel <- err
-					return
+					continue
 				}
 
 				requests.Set(piece_index, block_offset)

@@ -82,7 +82,7 @@ func (p *PeerHandler) StartReceiving(ctx context.Context, received_channel chan<
 				received, err := messaging.ReceiveMessage(p.conn)
 				if err != nil {
 					error_channel <- err
-					return
+					continue
 				}
 
 				if received.Kind == messaging.MSG_PIECE {
