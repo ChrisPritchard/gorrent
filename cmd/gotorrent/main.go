@@ -163,7 +163,9 @@ func handle_received(received messaging.Received, requests *peer.RequestMap, pee
 		requests.Delete(index, begin)
 		for i := range peers {
 			err = peers[i].CancelRequest(index, begin, len(piece))
-			return
+			if err != nil {
+				return false, err
+			}
 		}
 
 		partials[index].Set(int(begin), piece)
@@ -176,7 +178,9 @@ func handle_received(received messaging.Received, requests *peer.RequestMap, pee
 
 			for i := range peers {
 				err = peers[i].SendHave(index)
-				return
+				if err != nil {
+					return false, err
+				}
 			}
 		}
 	} else {
@@ -238,7 +242,7 @@ func start_requesting_pieces(ctx context.Context, peers []*peer.PeerHandler, par
 				}
 
 				requests.Set(piece_index, block_offset)
-				fmt.Printf("requested block %d/%d (offset %d) of piece %d from peer %s\n", block_index+1, partial.Length(), block_offset, piece_index, valid_peer.Id)
+				//fmt.Printf("requested block %d/%d (offset %d) of piece %d from peer %s\n", block_index+1, partial.Length(), block_offset, piece_index, valid_peer.Id)
 			}
 		}
 	}()

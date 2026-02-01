@@ -72,7 +72,7 @@ func (p *PeerHandler) RequestPieceBlock(index, begin, length int) error {
 	return messaging.SendMessage(p.conn, messaging.MSG_REQUEST, to_send)
 }
 
-func (p *PeerHandler) StartReceiving(ctx context.Context, received_channnel chan<- messaging.Received, error_channel chan<- error) {
+func (p *PeerHandler) StartReceiving(ctx context.Context, received_channel chan<- messaging.Received, error_channel chan<- error) {
 	go func() {
 		for {
 			select {
@@ -82,12 +82,15 @@ func (p *PeerHandler) StartReceiving(ctx context.Context, received_channnel chan
 				received, err := messaging.ReceiveMessage(p.conn)
 				if err != nil {
 					error_channel <- err
-				} else if received.Kind == messaging.MSG_PIECE {
+					return
+				}
+
+				if received.Kind == messaging.MSG_PIECE {
 					index, begin, _ := received.AsPiece()
 					p.requests.Delete(index, begin)
-				} else {
-					received_channnel <- received
 				}
+
+				received_channel <- received
 			}
 		}
 	}()
@@ -100,7 +103,7 @@ func (p *PeerHandler) SendHave(piece_index int) error {
 }
 
 func (p *PeerHandler) SendKeepAlive() error {
-	_, err := p.conn.Write([]byte{})
+	_, err := p.conn.Write([]byte{0, 0, 0, 0})
 	return err
 }
 
