@@ -2,8 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -17,28 +16,26 @@ import (
 	"github.com/chrispritchard/gorrent/internal/util"
 )
 
-func main() {
+var verbose bool
 
-	file := "c:\\users\\chris\\onedrive\\desktop\\test.torrent"
-	if _, err := os.Stat("ScreenToGif.exe"); err == nil {
-		os.Remove("ScreenToGif.exe")
+func main() {
+	flag.BoolVar(&verbose, "v", false, "enable verbose output")
+	flag.Parse()
+
+	if len(flag.Args()) == 0 {
+		fmt.Println("Usage: gorrent [options] <torrent-file>")
+		flag.PrintDefaults()
+		os.Exit(1)
 	}
+
+	file := flag.Arg(0)
 
 	err := try_download(file)
 	if err != nil {
-		fmt.Printf("unable to download via torrent file: %v", err)
+		fmt.Printf("unable to download via torrent file: %v\n", err)
 		os.Exit(1)
 	}
-
-	orig_hash := "c5255beede8949d1ac8da7b4ae80d3c46fe2ccb8"
-	f, _ := os.ReadFile("ScreenToGif.exe")
-	new_hash := sha1.Sum(f)
-	if hex.EncodeToString(new_hash[:]) == orig_hash {
-		fmt.Println("success! file integrity checked and matches")
-	} else {
-		fmt.Printf("failure! file hash doesnt match original")
-		os.Exit(1)
-	}
+	fmt.Println("Download complete.")
 }
 
 func try_download(torrent_file_path string) error {
@@ -107,13 +104,16 @@ func start_state_machine(metadata TorrentMetadata, tracker_info tracker.TrackerR
 	if len(peers) == 0 {
 		return fmt.Errorf("failed to connect to a peer")
 	}
+	if verbose {
+		fmt.Printf("Connected to %d peers\n", len(peers))
+	}
 
 	for _, p := range peers {
 		p.StartReceiving(ctx, received_channel, error_channel)
 		defer p.Close()
 	}
 
-	download_state := downloading.NewDownloadState(metadata, peers, out_file)
+	download_state := downloading.NewDownloadState(metadata, peers, out_file, verbose)
 	download_state.StartRequestingPieces(ctx, error_channel)
 
 	keep_alive := time.NewTicker(2 * time.Minute)
@@ -133,11 +133,16 @@ func start_state_machine(metadata TorrentMetadata, tracker_info tracker.TrackerR
 				if err != nil {
 					return err
 				}
+				if verbose {
+					fmt.Printf("Received block: index=%d begin=%d len=%d\n", index, begin, len(piece))
+				}
 				if finished {
 					return nil // complete
 				}
 			} else {
-				fmt.Printf("received an unhandled kind: %d\n", received.Kind)
+				if verbose {
+					fmt.Printf("received an unhandled kind: %d\n", received.Kind)
+				}
 			}
 		case err := <-error_channel:
 			return err

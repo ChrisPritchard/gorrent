@@ -10,7 +10,9 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/gorrent/main.go",
-            "args": [],
+            "args": [
+                "c:\\users\\chris\\Onedrive\\desktop\\test.torrent"
+            ],
             "env": {},
             "showLog": true
         }
