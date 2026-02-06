@@ -11,6 +11,7 @@ import (
 	"github.com/chrispritchard/gorrent/internal/downloading"
 	"github.com/chrispritchard/gorrent/internal/messaging"
 	"github.com/chrispritchard/gorrent/internal/peer"
+	"github.com/chrispritchard/gorrent/internal/terminal"
 	. "github.com/chrispritchard/gorrent/internal/torrent_files"
 	"github.com/chrispritchard/gorrent/internal/tracker"
 	"github.com/chrispritchard/gorrent/internal/util"
@@ -32,14 +33,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	file := flag.Arg(0)
+	//file := flag.Arg(0)
 
-	err := try_download(file)
-	if err != nil {
-		fmt.Printf("unable to download via torrent file: %v\n", err)
-		os.Exit(1)
+	terminal.ToggleCursor(false)
+	defer terminal.ToggleCursor(true)
+	for i := range 10000 {
+		prog_bar, _ := terminal.ProgressBar(i, 10000, 20, "p/h")
+		terminal.Clear(5)
+		terminal.Render([]string{
+			"this is a test of my terminal package",
+			"it shows lines in the terminal, hiding",
+			"the cursor. it also includes a progress bar:",
+			"",
+			prog_bar,
+		})
 	}
-	fmt.Println("Download complete.")
+
+	// err := try_download(file)
+	// if err != nil {
+	// 	fmt.Printf("unable to download via torrent file: %v\n", err)
+	// 	os.Exit(1)
+	// }
+	// fmt.Println("Download complete.")
 }
 
 func try_download(torrent_file_path string) error {
