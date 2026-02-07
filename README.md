@@ -32,3 +32,10 @@ exit status 1
 ```
 
 At present it only supports torrent files, and only single file downloads.
+
+## multifiles
+
+torrent includes a list of files, in path segment form
+pieces are applied to files in order - each file has a length
+this might require partial writes to more than one file?
+instantiate all the files on start, create a file holder that can receive data and abstract the per file writing
