@@ -15,6 +15,7 @@ type OutFileManager struct {
 	indices                    []file_indices
 	hashes                     []string
 	piece_length, total_length int
+	bitfield                   *bitfields.BitField
 }
 
 type file_indices struct {
@@ -49,7 +50,7 @@ func CreateOutFileManager(metadata TorrentMetadata, base_dir string) (*OutFileMa
 		total_length += fm.Length
 	}
 
-	return &OutFileManager{out_files, indices, metadata.Pieces, metadata.PieceLength, total_length}, nil
+	return &OutFileManager{out_files, indices, metadata.Pieces, metadata.PieceLength, total_length, nil}, nil
 }
 
 func (ofm *OutFileManager) Close() {
@@ -59,6 +60,13 @@ func (ofm *OutFileManager) Close() {
 }
 
 func (ofm *OutFileManager) WritePiece(piece int, data []byte) error {
+	if ofm.bitfield != nil {
+		err := ofm.bitfield.Set(uint(piece))
+		if err != nil {
+			return err
+		}
+	}
+
 	data_start := piece * ofm.piece_length
 	data_end := data_start + len(data)
 
@@ -94,6 +102,10 @@ func (ofm *OutFileManager) WritePiece(piece int, data []byte) error {
 }
 
 func (ofm *OutFileManager) Bitfield() (*bitfields.BitField, error) {
+	if ofm.bitfield != nil {
+		return ofm.bitfield, nil
+	}
+
 	bitfield := bitfields.CreateBlankBitfield(len(ofm.hashes))
 
 	for i, h := range ofm.hashes {
@@ -116,7 +128,8 @@ func (ofm *OutFileManager) Bitfield() (*bitfields.BitField, error) {
 		}
 	}
 
-	return &bitfield, nil
+	ofm.bitfield = &bitfield
+	return ofm.bitfield, nil
 }
 
 func (ofm *OutFileManager) get_data_range(data_start, data_end int) ([]byte, error) {
