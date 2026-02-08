@@ -1,4 +1,4 @@
-package outfiles
+package out_files
 
 import (
 	"crypto/sha1"

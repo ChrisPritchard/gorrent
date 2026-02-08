@@ -1,0 +1,11 @@
+# Cline rules
+
+The project is being developed on Windows: all commands should assume a powershell environment.
+
+No use of external libraries: all code used should come from the standard library or be written.
+
+Internal variable names are always written in lowercase snake case. This also applies to package names and their folder names.
+
+Public types and functions follow Go's normal Upper camel case pattern.
+
+Almost no comments are used, except on exported elements (public types and functions). Internally, comments are only ever applied next to magic strings or numbers to explain their purpose.
