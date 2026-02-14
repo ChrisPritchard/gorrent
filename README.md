@@ -6,24 +6,9 @@ Small Golang BitTorrent client.
 
 Idea #1 from <https://codecrafters.io/blog/programming-project-ideas>, and built against the BitTorrent specification: <https://www.bittorrent.org/beps/bep_0003.html>
 
-## BitTorrent process
+> Presently only downloading is supported - if a torrent is loaded for a file that is fully completed, the application will panic as 'seeding' isn't supported (yet?)
 
-The process for downloading a file via torrenting is:
-
-- parse the [bencoded](https://en.wikipedia.org/wiki/Bencode) torrent file
-  - this provides the announce urls, which are the 'trackers'
-  - also an info dictionary, with details about the file(s) to be downloaded
-- make a GET request to a tracker, passing values that identify you as a peer and giving the file info you want
-- the tracker returns a peer list, ip address/port combos
-- connect to peers, sending a handshake and exchanging bitfields - a bit structure indicating what pieces you and the peer have
-- then exchange messages with peers to download and upload pieces of the file(s):
-  - a request is sent, asking for an offset of a given length of a piece (typically 16kb at a time)
-  - pieces are received, and these need to be saved to the local file
-
-> All downloaders are also uploaders, as indicated by the last step above and the fact that you register with the tracker as a peer.
-> The initial provider of a given torrent file or files starts a downloader to upload the data without needing to download anything (they already have the full file(s))
-
-## Gorrent features
+> Only torrent files are supported, only over tcp and unencrypted (e.g. no magnet links, no utorrent protocol, no TLS)
 
 ```
 Usage: gorrent [options] <torrent-file>
@@ -31,7 +16,19 @@ Usage: gorrent [options] <torrent-file>
 exit status 1
 ```
 
-At present it only supports torrent files.
+## Components
+
+- gorrent/main.go: gets a torrent file from the arguments, parses it, creates or reads local files, then initiates a parallel process of requesting pieces and receiving them from peersfrom the tracker
+- bencode: contains methods to parse the bencoded torrent file, and bencoded responses
+- bitfields: contains a type used to represent available pieces of a torrent - this is a long bit array where each positive bit represents a held piece. these fields are exchanged with peers
+- downloading: a manager of local files, local bit fields and remote peers that makes requests for pieces, cancels requests, and receives requests for writing to the local files
+- messaging: helper methods for the inter-peer communication structure, including message types and tcp conn management
+- out_files: a manager for local files: abstracts single vs multi-file torrent structures away from the communication primitives (which are just pieces and offsets). writes received data to the correct files at the correct locations, and also maintains the local bitfield
+- peer: types for talking to peers, including a handler manages the connection
+- terminal: some utility methods for presenting status and progress bars in the terminal, mostly using escape codes
+- torrent_files: contains types and methods for parsing torrent files into useful structs
+- tracker: communication with trackers, registering as a peer and finding other peers
+- util: at present, just some useful concurrency functions
 
 ## LLM Use disclaimer
 
